@@ -36,8 +36,6 @@ public class AdminController {
     private final SectionService sectionService;
     private final TermService termService;
 
-    // ==================== STUDENT ENDPOINTS ====================
-
     @Operation(summary = "Get all students", description = "Retrieve a paginated list of all students")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Students retrieved successfully"),
@@ -52,8 +50,6 @@ public class AdminController {
         Page<StudentDto> students = studentService.getAllStudents(pageable);
         return ResponseEntity.ok(students);
     }
-
-    // ==================== SECTION ENDPOINTS ====================
 
     @Operation(summary = "Get students in section", description = "Retrieve students enrolled in a specific section")
     @ApiResponses(value = {
@@ -122,8 +118,6 @@ public class AdminController {
         sectionService.deleteSection(id);
         return ResponseEntity.noContent().build();
     }
-
-    // ==================== TERM ENDPOINTS ====================
 
     @Operation(summary = "Get all terms", description = "Retrieve all academic terms")
     @ApiResponses(value = {

@@ -35,7 +35,7 @@ class EnrollmentControllerIT extends AbstractIntegrationTest {
     class FullEnrollmentFlowTests {
 
         @Test
-        @DisplayName("Should complete full enrollment flow: register → login → get sections → enlist → verify")
+        @DisplayName("Should complete full enrollment flow: register, login, get sections, enlist, verify")
         void testEnlistment_FullFlow() throws Exception {
             // Step 1: Register new student
             String uniqueUsername = "flowtest_" + UUID.randomUUID().toString().substring(0, 8);
