@@ -39,7 +39,7 @@ public class SectionService {
     }
 
     @Transactional(readOnly = true)
-    public List<SectionDto> getAvailableSections(Long termId, String courseCode) {
+    public List<SectionDto> getAvailableSections(Long termId, String courseCode, Long degreeId) {
         List<Section> sections;
 
         if (termId != null && courseCode != null) {
@@ -47,7 +47,7 @@ public class SectionService {
                     .orElseThrow(() -> new ResourceNotFoundException("Course", "courseCode", courseCode));
             sections = sectionRepository.findByCourseIdAndTermId(course.getId(), termId);
         } else if (termId != null) {
-            sections = sectionRepository.findAvailableSectionsByTerm(termId);
+            sections = sectionRepository.findAllSectionsByTerm(termId);
         } else if (courseCode != null) {
             Course course = courseRepository.findByCourseCode(courseCode)
                     .orElseThrow(() -> new ResourceNotFoundException("Course", "courseCode", courseCode));
@@ -55,7 +55,29 @@ public class SectionService {
         } else {
             Term activeTerm = termRepository.findFirstByIsActiveTrueOrderByStartDateDesc()
                     .orElseThrow(() -> new ResourceNotFoundException("No active term found"));
-            sections = sectionRepository.findAvailableSectionsByTerm(activeTerm.getId());
+            sections = sectionRepository.findAllSectionsByTerm(activeTerm.getId());
+        }
+
+        if (degreeId != null) {
+            sections = sections.stream()
+                    .filter(s -> s.getCourse().getDegree().getId().equals(degreeId))
+                    .toList();
+        }
+
+        return sections.stream().map(SectionService::toSectionDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SectionDto> getAllSectionsForAdmin() {
+        // Try to get sections from active term first
+        var activeTermOpt = termRepository.findFirstByIsActiveTrueOrderByStartDateDesc();
+
+        List<Section> sections;
+        if (activeTermOpt.isPresent()) {
+            sections = sectionRepository.findAllSectionsByTerm(activeTermOpt.get().getId());
+        } else {
+            // If no active term, return all sections
+            sections = sectionRepository.findAll();
         }
 
         return sections.stream().map(SectionService::toSectionDto).toList();

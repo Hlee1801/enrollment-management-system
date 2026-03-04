@@ -1,10 +1,12 @@
 package com.gcash.enrollmentmanagementsystem.controller;
 
+import com.gcash.enrollmentmanagementsystem.dto.DegreeDto;
 import com.gcash.enrollmentmanagementsystem.dto.auth.LoginRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.RefreshTokenRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.RegisterRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.TokenResponse;
 import com.gcash.enrollmentmanagementsystem.service.AuthService;
+import com.gcash.enrollmentmanagementsystem.service.DegreeProgressService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -26,6 +29,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final DegreeProgressService degreeProgressService;
 
     @Operation(summary = "User login", description = "Authenticate user and return JWT tokens")
     @ApiResponses(value = {
@@ -77,5 +81,15 @@ public class AuthController {
     ) {
         authService.logout(authHeader);
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+    }
+
+    @Operation(summary = "Get available degrees", description = "Retrieve list of degrees for registration (no authentication required)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Degrees retrieved successfully")
+    })
+    @GetMapping("/degrees")
+    public ResponseEntity<List<DegreeDto>> getDegreesForRegistration() {
+        List<DegreeDto> degrees = degreeProgressService.getAllDegrees();
+        return ResponseEntity.ok(degrees);
     }
 }

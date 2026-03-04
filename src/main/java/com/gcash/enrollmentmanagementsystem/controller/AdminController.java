@@ -1,6 +1,7 @@
 package com.gcash.enrollmentmanagementsystem.controller;
 
 import com.gcash.enrollmentmanagementsystem.dto.*;
+import com.gcash.enrollmentmanagementsystem.service.EnrollmentService;
 import com.gcash.enrollmentmanagementsystem.service.SectionService;
 import com.gcash.enrollmentmanagementsystem.service.StudentService;
 import com.gcash.enrollmentmanagementsystem.service.TermService;
@@ -35,6 +36,7 @@ public class AdminController {
     private final StudentService studentService;
     private final SectionService sectionService;
     private final TermService termService;
+    private final EnrollmentService enrollmentService;
 
     @Operation(summary = "Get all students", description = "Retrieve a paginated list of all students")
     @ApiResponses(value = {
@@ -145,5 +147,51 @@ public class AdminController {
     ) {
         TermDto term = termService.createTerm(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(term);
+    }
+
+    @Operation(summary = "Get all sections", description = "Retrieve all sections for the active term")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Sections retrieved successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Admin access required")
+    })
+    @GetMapping("/sections")
+    public ResponseEntity<List<SectionDto>> getAllSections() {
+        List<SectionDto> sections = sectionService.getAllSectionsForAdmin();
+        return ResponseEntity.ok(sections);
+    }
+
+    @Operation(summary = "Get enrollments in section",
+            description = "Retrieve all active enrollments in a specific section")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Enrollments retrieved successfully"),
+            @ApiResponse(responseCode = "404", description = "Section not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Admin access required")
+    })
+    @GetMapping("/sections/{id}/enrollments")
+    public ResponseEntity<List<EnrollmentDto>> getEnrollmentsInSection(
+            @Parameter(description = "Section ID") @PathVariable Long id
+    ) {
+        List<EnrollmentDto> enrollments = enrollmentService.getEnrollmentsBySection(id);
+        return ResponseEntity.ok(enrollments);
+    }
+
+    @Operation(summary = "Mark enrollment as completed",
+            description = "Mark a student's enrollment as completed (course passed)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Enrollment marked as completed",
+                    content = @Content(schema = @Schema(implementation = EnrollmentDto.class))),
+            @ApiResponse(responseCode = "400", description = "Cannot complete dropped enrollment"),
+            @ApiResponse(responseCode = "404", description = "Enrollment not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Admin access required")
+    })
+    @PutMapping("/enrollments/{id}/complete")
+    public ResponseEntity<EnrollmentDto> markEnrollmentCompleted(
+            @Parameter(description = "Enrollment ID") @PathVariable Long id
+    ) {
+        EnrollmentDto enrollment = enrollmentService.markAsCompleted(id);
+        return ResponseEntity.ok(enrollment);
     }
 }

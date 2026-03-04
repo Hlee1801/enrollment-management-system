@@ -33,6 +33,8 @@ public class EnrollmentService {
         Section section = sectionRepository.findById(request.getSectionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Section", "id", request.getSectionId()));
 
+        checkCourseInDegree(student, section);
+
         if (enrollmentRepository.existsByStudentIdAndSectionId(student.getId(), section.getId())) {
             throw new DuplicateEnrollmentException(student.getStudentNumber(), section.getSectionCode());
         }
@@ -46,7 +48,7 @@ public class EnrollmentService {
         Enrollment enrollment = Enrollment.builder()
                 .student(student)
                 .section(section)
-                .status(EnrollmentStatus.PENDING)
+                .status(EnrollmentStatus.ENROLLED)
                 .build();
 
         enrollment = enrollmentRepository.save(enrollment);
@@ -54,7 +56,7 @@ public class EnrollmentService {
         section.setCurrentEnrollment(section.getCurrentEnrollment() + 1);
         sectionRepository.save(section);
 
-        log.info("Student {} enrolled in section {} with status PENDING",
+        log.info("Student {} enrolled in section {} with status ENROLLED",
                 student.getStudentNumber(), section.getSectionCode());
 
         return toDto(enrollment);
@@ -158,6 +160,42 @@ public class EnrollmentService {
         return enrollments.stream().map(this::toDto).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<EnrollmentDto> getEnrollmentsBySection(Long sectionId) {
+        sectionRepository.findById(sectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section", "id", sectionId));
+
+        return enrollmentRepository.findBySectionId(sectionId)
+                .stream()
+                .filter(e -> e.getStatus() != EnrollmentStatus.DROPPED) // Exclude dropped
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Transactional
+    public EnrollmentDto markAsCompleted(Long enrollmentId) {
+        Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Enrollment", "id", enrollmentId));
+
+        if (enrollment.getStatus() == EnrollmentStatus.DROPPED) {
+            throw new InvalidEnrollmentStatusException(enrollment.getStatus(), "mark as completed");
+        }
+
+        if (enrollment.getStatus() == EnrollmentStatus.COMPLETED) {
+            return toDto(enrollment); // Already completed
+        }
+
+        enrollment.setStatus(EnrollmentStatus.COMPLETED);
+        enrollment = enrollmentRepository.save(enrollment);
+
+        log.info("Enrollment {} for student {} in section {} marked as COMPLETED",
+                enrollmentId,
+                enrollment.getStudent().getStudentNumber(),
+                enrollment.getSection().getSectionCode());
+
+        return toDto(enrollment);
+    }
+
     private void checkScheduleConflict(Student student, Section newSection) {
         Long termId = newSection.getTerm().getId();
         Schedule newSchedule = newSection.getSchedule();
@@ -204,6 +242,21 @@ public class EnrollmentService {
         }
         return schedule1.getStartTime().isBefore(schedule2.getEndTime()) &&
                 schedule2.getStartTime().isBefore(schedule1.getEndTime());
+    }
+
+    private void checkCourseInDegree(Student student, Section section) {
+        if (student.getDegree() == null) {
+            throw new BadRequestException("Student does not have a degree assigned");
+        }
+
+        Long courseDegreeId = section.getCourse().getDegree().getId();
+        Long studentDegreeId = student.getDegree().getId();
+
+        if (!courseDegreeId.equals(studentDegreeId)) {
+            throw new CourseNotInDegreeException(
+                    section.getCourse().getCourseCode(),
+                    student.getDegree().getName());
+        }
     }
 
     private EnrollmentDto toDto(Enrollment enrollment) {

@@ -8,7 +8,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
@@ -16,10 +15,6 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     List<Enrollment> findByStudentId(Long studentId);
 
     List<Enrollment> findBySectionId(Long sectionId);
-
-    List<Enrollment> findByStatus(EnrollmentStatus status);
-
-    Optional<Enrollment> findByStudentIdAndSectionId(Long studentId, Long sectionId);
 
     boolean existsByStudentIdAndSectionId(Long studentId, Long sectionId);
 
@@ -40,4 +35,12 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
            "AND e.status IN ('PENDING', 'ENROLLED')")
     List<Enrollment> findActiveEnrollmentsForScheduleConflictCheck(@Param("studentId") Long studentId,
                                                                     @Param("termId") Long termId);
+
+    @Query("SELECT e FROM Enrollment e " +
+           "JOIN e.section s " +
+           "WHERE e.student.id = :studentId " +
+           "AND s.course.degree.id = :degreeId " +
+           "AND e.status IN ('ENROLLED', 'COMPLETED')")
+    List<Enrollment> findByStudentIdAndDegreeId(@Param("studentId") Long studentId,
+                                                 @Param("degreeId") Long degreeId);
 }

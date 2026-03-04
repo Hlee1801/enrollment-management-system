@@ -104,7 +104,7 @@ EnrollmentServiceTest {
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result.getStatus()).isEqualTo(EnrollmentStatus.PENDING);
+            assertThat(result.getStatus()).isEqualTo(EnrollmentStatus.ENROLLED);
             verify(enrollmentRepository).save(any(Enrollment.class));
             verify(sectionRepository).save(any(Section.class));
         }

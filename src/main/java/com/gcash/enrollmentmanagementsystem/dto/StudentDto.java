@@ -20,4 +20,6 @@ public class StudentDto {
     private LocalDate dateOfBirth;
     private String email;
     private String username;
+    private Long degreeId;
+    private String degreeName;
 }

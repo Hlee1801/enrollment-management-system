@@ -114,6 +114,8 @@ public class StudentService {
                 .dateOfBirth(student.getDateOfBirth())
                 .email(student.getUser() != null ? student.getUser().getEmail() : null)
                 .username(student.getUser() != null ? student.getUser().getUsername() : null)
+                .degreeId(student.getDegree() != null ? student.getDegree().getId() : null)
+                .degreeName(student.getDegree() != null ? student.getDegree().getName() : null)
                 .build();
     }
 

@@ -36,4 +36,7 @@ public class RegisterRequest {
 
     @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
+
+    @NotNull(message = "Degree is required")
+    private Long degreeId;
 }

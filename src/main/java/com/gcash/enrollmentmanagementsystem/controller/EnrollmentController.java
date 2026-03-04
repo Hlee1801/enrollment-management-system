@@ -3,6 +3,7 @@ package com.gcash.enrollmentmanagementsystem.controller;
 import com.gcash.enrollmentmanagementsystem.dto.*;
 import com.gcash.enrollmentmanagementsystem.service.EnrollmentService;
 import com.gcash.enrollmentmanagementsystem.service.SectionService;
+import com.gcash.enrollmentmanagementsystem.service.StudentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,9 +30,10 @@ public class EnrollmentController {
 
     private final EnrollmentService enrollmentService;
     private final SectionService sectionService;
+    private final StudentService studentService;
 
     @Operation(summary = "Get available sections",
-            description = "Retrieve available sections for enrollment, optionally filtered by term and/or course")
+            description = "Retrieve available sections for enrollment, optionally filtered by term and/or course. For students, only sections for their degree are shown.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Sections retrieved successfully"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
@@ -43,9 +45,18 @@ public class EnrollmentController {
             @Parameter(description = "Filter by term ID (optional)")
             @RequestParam(required = false) Long termId,
             @Parameter(description = "Filter by course code (optional)")
-            @RequestParam(required = false) String courseCode
+            @RequestParam(required = false) String courseCode,
+            org.springframework.security.core.Authentication authentication
     ) {
-        List<SectionDto> sections = sectionService.getAvailableSections(termId, courseCode);
+        Long degreeId = null;
+        if (authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"))) {
+            var student = studentService.getCurrentStudent();
+            if (student.getDegree() != null) {
+                degreeId = student.getDegree().getId();
+            }
+        }
+        List<SectionDto> sections = sectionService.getAvailableSections(termId, courseCode, degreeId);
         return ResponseEntity.ok(sections);
     }
 

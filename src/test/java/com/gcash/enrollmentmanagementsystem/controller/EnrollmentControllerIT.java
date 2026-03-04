@@ -68,7 +68,7 @@ class EnrollmentControllerIT extends AbstractIntegrationTest {
                             .content(objectMapper.writeValueAsString(enrollRequest)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").isNumber())
-                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.status").value("ENROLLED"))
                     .andReturn();
 
             EnrollmentDto enrollment = objectMapper.readValue(
@@ -81,7 +81,7 @@ class EnrollmentControllerIT extends AbstractIntegrationTest {
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(enrollment.getId()))
-                    .andExpect(jsonPath("$.status").value("PENDING"));
+                    .andExpect(jsonPath("$.status").value("ENROLLED"));
         }
 
         @Test

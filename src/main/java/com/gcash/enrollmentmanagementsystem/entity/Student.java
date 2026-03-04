@@ -37,6 +37,12 @@ public class Student {
     @EqualsAndHashCode.Exclude
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "degree_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Degree degree;
+
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

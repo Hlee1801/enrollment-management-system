@@ -4,11 +4,14 @@ import com.gcash.enrollmentmanagementsystem.dto.auth.LoginRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.RefreshTokenRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.RegisterRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.TokenResponse;
+import com.gcash.enrollmentmanagementsystem.entity.Degree;
 import com.gcash.enrollmentmanagementsystem.entity.Student;
 import com.gcash.enrollmentmanagementsystem.entity.User;
 import com.gcash.enrollmentmanagementsystem.enums.Role;
 import com.gcash.enrollmentmanagementsystem.exception.BadRequestException;
+import com.gcash.enrollmentmanagementsystem.exception.ResourceNotFoundException;
 import com.gcash.enrollmentmanagementsystem.exception.UnauthorizedException;
+import com.gcash.enrollmentmanagementsystem.repository.DegreeRepository;
 import com.gcash.enrollmentmanagementsystem.repository.StudentRepository;
 import com.gcash.enrollmentmanagementsystem.repository.UserRepository;
 import com.gcash.enrollmentmanagementsystem.security.JwtTokenProvider;
@@ -35,6 +38,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
+    private final DegreeRepository degreeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -84,6 +88,10 @@ public class AuthService {
 
         user = userRepository.save(user);
 
+        // Find degree
+        Degree degree = degreeRepository.findById(request.getDegreeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Degree not found with id: " + request.getDegreeId()));
+
         // Generate student number
         String studentNumber = generateStudentNumber();
 
@@ -94,6 +102,7 @@ public class AuthService {
                 .lastName(request.getLastName())
                 .dateOfBirth(request.getDateOfBirth())
                 .user(user)
+                .degree(degree)
                 .build();
 
         studentRepository.save(student);
