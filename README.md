@@ -437,90 +437,484 @@ The frontend will be available at `http://localhost:5173`
 
 ### 1. Schedule Conflict Detection
 
-The system prevents students from enrolling in sections that have overlapping schedules within the same term.
+**Business Requirement:**
+> "A conflict in a student's schedule is the primary cause of delay in finalizing a student's EAF (Enrollment Assessment Form). Staff members would like to inform students during enrollment (and not at the start of the term) that there are schedule conflicts."
 
-**Algorithm:**
+**Solution:** Real-time schedule conflict validation during enrollment process.
+
+**Workflow Diagram:**
+
 ```
-For each existing enrollment in the same term:
-    If same day of week:
-        If (new.startTime < existing.endTime) AND (existing.startTime < new.endTime):
-            CONFLICT DETECTED
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SCHEDULE CONFLICT DETECTION                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Student                    Frontend                     Backend
+     │                          │                            │
+     │  Click "Enroll"          │                            │
+     │─────────────────────────>│                            │
+     │                          │                            │
+     │                          │  POST /api/enrollments     │
+     │                          │  { sectionId: 5 }          │
+     │                          │───────────────────────────>│
+     │                          │                            │
+     │                          │              ┌─────────────┴─────────────┐
+     │                          │              │  EnrollmentService        │
+     │                          │              │  .createEnrollment()      │
+     │                          │              └─────────────┬─────────────┘
+     │                          │                            │
+     │                          │              ┌─────────────┴─────────────┐
+     │                          │              │  Query existing active    │
+     │                          │              │  enrollments in same term │
+     │                          │              └─────────────┬─────────────┘
+     │                          │                            │
+     │                          │              ┌─────────────┴─────────────┐
+     │                          │              │  For each enrollment:     │
+     │                          │              │  Compare day_of_week      │
+     │                          │              │  Compare time intervals   │
+     │                          │              └─────────────┬─────────────┘
+     │                          │                            │
+     │                          │                     ┌──────┴──────┐
+     │                          │                     │             │
+     │                          │               No Conflict    Conflict Found
+     │                          │                     │             │
+     │                          │                     ▼             ▼
+     │                          │               ┌─────────┐   ┌─────────────┐
+     │                          │               │ Continue│   │ Throw       │
+     │                          │               │ Process │   │ Schedule    │
+     │                          │               └────┬────┘   │ Conflict    │
+     │                          │                    │        │ Exception   │
+     │                          │                    │        └──────┬──────┘
+     │                          │                    │               │
+     │                          │  201 Created       │    409 Conflict
+     │                          │<───────────────────┘               │
+     │                          │                                    │
+     │                          │<───────────────────────────────────┘
+     │  Success/Error Message   │
+     │<─────────────────────────│
+     │                          │
 ```
 
-**Location:** `EnrollmentService.checkScheduleConflict()`
+**Time Overlap Algorithm:**
 
-### 2. Seat Limit Enforcement
-
-Each section has a maximum capacity. The system tracks current enrollment and prevents overbooking.
-
-**Logic:**
 ```
-If currentEnrollment >= maxSeats:
-    Throw SeatLimitExceededException
-Else:
-    Allow enrollment and increment counter
+Schedule A: Monday 08:00 - 10:00
+Schedule B: Monday 09:00 - 11:00
+
+Check: A.start < B.end AND B.start < A.end
+       08:00 < 11:00 = TRUE
+       09:00 < 10:00 = TRUE
+
+Result: CONFLICT (both conditions are TRUE)
 ```
 
-**Location:** `EnrollmentService.createEnrollment()`
+```
+Schedule A: Monday 08:00 - 10:00
+Schedule B: Monday 10:00 - 12:00
+
+Check: A.start < B.end AND B.start < A.end
+       08:00 < 12:00 = TRUE
+       10:00 < 10:00 = FALSE
+
+Result: NO CONFLICT (one condition is FALSE)
+```
+
+**Implementation Files:**
+
+| File | Method | Description |
+|------|--------|-------------|
+| EnrollmentService.java | checkScheduleConflict() | Main validation logic |
+| EnrollmentService.java | hasTimeOverlap() | Time comparison algorithm |
+| EnrollmentRepository.java | findActiveEnrollmentsForScheduleConflictCheck() | Database query |
+| ScheduleConflictException.java | | Custom exception class |
+| GlobalExceptionHandler.java | handleScheduleConflictException() | Error response formatting |
+
+**API Response Example:**
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "message": "Schedule conflict: Section 'CS102-A' overlaps with your enrolled section 'CS101-A'",
+  "path": "/api/enrollments"
+}
+```
+
+---
+
+### 2. Seat Limit Enforcement (Overbooking Prevention)
+
+**Business Requirement:**
+> "Sections get overbooked, and some students are dropped from the said section at the start of the term. Each section has a limit on the number of seats. When this limit is reached, no more students are able to enroll."
+
+**Solution:** Track current enrollment count and validate against maximum seats before allowing enrollment.
+
+**Workflow Diagram:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SEAT LIMIT ENFORCEMENT                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                              SECTIONS Table
+                    ┌────────────────────────────────┐
+                    │ section_code: CS101-A          │
+                    │ max_seats: 30                  │
+                    │ current_enrollment: 29         │
+                    └────────────────────────────────┘
+                                    │
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│                      Student Tries to Enroll                              │
+└───────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │ Check: currentEnrollment      │
+                    │        >= maxSeats ?          │
+                    │                               │
+                    │        29 >= 30 ?             │
+                    │        FALSE                  │
+                    └───────────────┬───────────────┘
+                                    │
+                           ┌────────┴────────┐
+                           │                 │
+                      FALSE (29<30)      TRUE (30>=30)
+                           │                 │
+                           ▼                 ▼
+                    ┌─────────────┐   ┌─────────────────┐
+                    │ ALLOW       │   │ REJECT          │
+                    │ Enrollment  │   │ Throw           │
+                    │             │   │ SeatLimit       │
+                    │ current = 30│   │ Exceeded        │
+                    └──────┬──────┘   │ Exception       │
+                           │          └────────┬────────┘
+                           │                   │
+                           ▼                   ▼
+                    ┌─────────────┐   ┌─────────────────┐
+                    │ 201 Created │   │ 409 Conflict    │
+                    │             │   │ "Section has    │
+                    │ Enrollment  │   │  reached max    │
+                    │ successful  │   │  capacity"      │
+                    └─────────────┘   └─────────────────┘
+
+
+                         COUNTER UPDATE FLOW
+
+    ┌──────────────┐                         ┌──────────────┐
+    │   ENROLL     │                         │    DROP      │
+    └──────┬───────┘                         └──────┬───────┘
+           │                                        │
+           ▼                                        ▼
+    ┌──────────────┐                         ┌──────────────┐
+    │ current_     │                         │ current_     │
+    │ enrollment   │                         │ enrollment   │
+    │ += 1         │                         │ -= 1         │
+    │              │                         │              │
+    │ (29 -> 30)   │                         │ (30 -> 29)   │
+    └──────────────┘                         └──────────────┘
+```
+
+**Implementation Files:**
+
+| File | Method | Description |
+|------|--------|-------------|
+| EnrollmentService.java | createEnrollment() | Check seats before enrollment |
+| EnrollmentService.java | dropEnrollment() | Decrement counter on drop |
+| SeatLimitExceededException.java | | Custom exception class |
+| Section.java | currentEnrollment, maxSeats | Entity fields |
+
+**Database Constraint:**
+
+```sql
+CONSTRAINT chk_sections_enrollment_limit CHECK (current_enrollment <= max_seats)
+```
+
+**API Response Example:**
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "message": "Section 'CS101-A' has reached its maximum capacity of 30 seats",
+  "path": "/api/enrollments"
+}
+```
+
+---
 
 ### 3. Degree-Course Validation
 
-Students can only enroll in courses that belong to their degree program.
+**Business Requirement:**
+> "A degree has a set of courses. Completing all the required courses allows the student to attain the degree."
 
-**Logic:**
-```
-If course.degree.id != student.degree.id:
-    Throw CourseNotInDegreeException
-```
+**Solution:** Validate that the course belongs to the student's enrolled degree program before allowing enrollment.
 
-**Location:** `EnrollmentService.checkCourseInDegree()`
-
-## Project Structure
+**Workflow Diagram:**
 
 ```
-src/
-├── main/
-│   ├── java/com/gcash/enrollmentmanagementsystem/
-│   │   ├── config/          # Security, Swagger configs
-│   │   ├── controller/      # REST controllers
-│   │   ├── dto/             # Data Transfer Objects
-│   │   ├── entity/          # JPA entities
-│   │   ├── enums/           # Enums (Role, Status, DayOfWeek)
-│   │   ├── exception/       # Custom exceptions
-│   │   ├── repository/      # Spring Data repositories
-│   │   ├── security/        # JWT provider, filters
-│   │   └── service/         # Business logic
-│   └── resources/
-│       ├── db/migration/    # Flyway migrations
-│       └── application.yml  # Configuration
-└── test/
-    └── java/com/gcash/enrollmentmanagementsystem/
-        ├── controller/      # Integration tests (*IT.java)
-        ├── service/         # Unit tests (*Test.java)
-        └── security/        # Security tests
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DEGREE-COURSE VALIDATION                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    STUDENT                                    COURSE (via Section)
+    ┌─────────────────┐                       ┌─────────────────┐
+    │ name: John Doe  │                       │ code: MKT101    │
+    │ degree_id: 1    │                       │ name: Marketing │
+    │ (Computer       │                       │ degree_id: 2    │
+    │  Science)       │                       │ (Business Admin)│
+    └────────┬────────┘                       └────────┬────────┘
+             │                                         │
+             │         ┌───────────────────┐           │
+             └────────>│   COMPARISON      │<──────────┘
+                       │                   │
+                       │ student.degree_id │
+                       │       vs          │
+                       │ course.degree_id  │
+                       │                   │
+                       │     1 vs 2        │
+                       │                   │
+                       │   NOT EQUAL!      │
+                       └─────────┬─────────┘
+                                 │
+                                 ▼
+                       ┌───────────────────┐
+                       │ Throw             │
+                       │ CourseNotInDegree │
+                       │ Exception         │
+                       └─────────┬─────────┘
+                                 │
+                                 ▼
+                       ┌───────────────────┐
+                       │ 400 Bad Request   │
+                       │                   │
+                       │ "Course 'MKT101'  │
+                       │  is not part of   │
+                       │  the required     │
+                       │  courses for      │
+                       │  degree 'Computer │
+                       │  Science'"        │
+                       └───────────────────┘
+
+
+                    VALID ENROLLMENT SCENARIO
+
+    STUDENT                                    COURSE (via Section)
+    ┌─────────────────┐                       ┌─────────────────┐
+    │ name: John Doe  │                       │ code: CS101     │
+    │ degree_id: 1    │                       │ name: Intro to  │
+    │ (Computer       │                       │       Programming│
+    │  Science)       │                       │ degree_id: 1    │
+    └────────┬────────┘                       │ (Computer       │
+             │                                │  Science)       │
+             │         ┌───────────────────┐  └────────┬────────┘
+             └────────>│   COMPARISON      │<──────────┘
+                       │                   │
+                       │     1 vs 1        │
+                       │                   │
+                       │     EQUAL!        │
+                       └─────────┬─────────┘
+                                 │
+                                 ▼
+                       ┌───────────────────┐
+                       │ Continue to next  │
+                       │ validation        │
+                       │ (seat limit,      │
+                       │  schedule, etc.)  │
+                       └───────────────────┘
 ```
 
-## Enrollment Status Lifecycle
+**Data Relationship:**
 
 ```
-    ┌──────────┐
-    │ PENDING  │ (Initial state when enrolling)
-    └────┬─────┘
-         │
-         ▼
-    ┌──────────┐
-    │ ENROLLED │ (Student confirmed in section)
-    └────┬─────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌──────────┐  ┌──────────┐
-│ COMPLETED│  │ DROPPED  │
-│ (Passed) │  │ (Student │
-└──────────┘  │  dropped)│
-              └──────────┘
+DEGREES
+┌────┬───────────────────────────────────────┐
+│ ID │ NAME                                  │
+├────┼───────────────────────────────────────┤
+│ 1  │ Bachelor of Science in Computer Science│
+│ 2  │ Bachelor of Science in Business Admin │
+└────┴───────────────────────────────────────┘
+         │                    │
+         │ 1:N                │ 1:N
+         ▼                    ▼
+COURSES                    COURSES
+┌────────┬─────────────┐   ┌────────┬─────────────┐
+│ CS101  │ degree_id=1 │   │ BA101  │ degree_id=2 │
+│ CS201  │ degree_id=1 │   │ MKT101 │ degree_id=2 │
+│ CS301  │ degree_id=1 │   │ FIN101 │ degree_id=2 │
+└────────┴─────────────┘   └────────┴─────────────┘
+
+STUDENTS
+┌──────────────┬─────────────┬─────────────────────────┐
+│ Student      │ degree_id   │ Can Enroll In           │
+├──────────────┼─────────────┼─────────────────────────┤
+│ John Doe     │ 1           │ CS101, CS201, CS301     │
+│ Jane Smith   │ 2           │ BA101, MKT101, FIN101   │
+└──────────────┴─────────────┴─────────────────────────┘
 ```
+
+**Implementation Files:**
+
+| File | Method | Description |
+|------|--------|-------------|
+| EnrollmentService.java | checkCourseInDegree() | Validation logic |
+| CourseNotInDegreeException.java | | Custom exception class |
+| Student.java | degree (ManyToOne) | Student's degree program |
+| Course.java | degree (ManyToOne) | Course's owning degree |
+
+---
+
+### 4. Complete Enrollment Validation Flow
+
+**Full Workflow Diagram:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COMPLETE ENROLLMENT VALIDATION FLOW                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Student clicks "Enroll" on Section
+                │
+                ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ POST /api/enrollments { sectionId: 5 }                                    │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Authentication Check                                              │
+│ Is user authenticated with valid JWT token?                               │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+       YES              NO ──────────────> 401 Unauthorized
+        │
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Get Section                                                       │
+│ Does section exist in database?                                           │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+       YES              NO ──────────────> 404 Not Found
+        │                                  "Section not found"
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: Degree Validation                                                 │
+│ Does course belong to student's degree?                                   │
+│ course.degree.id == student.degree.id ?                                   │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+       YES              NO ──────────────> 400 Bad Request
+        │                                  "Course not in degree"
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: Duplicate Check                                                   │
+│ Is student already enrolled in this section?                              │
+│ existsByStudentIdAndSectionId() ?                                         │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+        NO             YES ──────────────> 409 Conflict
+        │                                  "Already enrolled"
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: Seat Limit Check                                                  │
+│ Are seats available?                                                      │
+│ currentEnrollment < maxSeats ?                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+       YES              NO ──────────────> 409 Conflict
+        │                                  "Section full"
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 6: Schedule Conflict Check                                           │
+│ Does new section overlap with existing enrollments?                       │
+│ Check all active enrollments in same term                                 │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+        ┌───────┴───────┐
+        │               │
+        NO             YES ──────────────> 409 Conflict
+        │                                  "Schedule conflict"
+        ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ STEP 7: Create Enrollment                                                 │
+│ Save enrollment record with status = ENROLLED                             │
+│ Increment section.currentEnrollment                                       │
+└───────────────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ 201 Created                                                               │
+│ Return EnrollmentDto with student, section, status, enrolledAt            │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+**Validation Order Summary:**
+
+| Step | Validation | Exception | HTTP Status |
+|------|------------|-----------|-------------|
+| 1 | JWT Authentication | AuthenticationException | 401 |
+| 2 | Section Exists | ResourceNotFoundException | 404 |
+| 3 | Course in Degree | CourseNotInDegreeException | 400 |
+| 4 | Not Duplicate | DuplicateEnrollmentException | 409 |
+| 5 | Seats Available | SeatLimitExceededException | 409 |
+| 6 | No Schedule Conflict | ScheduleConflictException | 409 |
+| 7 | Create Enrollment | (Success) | 201 |
+
+**Code Implementation:**
+
+```java
+public EnrollmentDto createEnrollment(EnrollmentCreateRequest request) {
+    // Step 1: Get authenticated student (handled by Spring Security)
+    Student student = studentService.getCurrentStudent();
+
+    // Step 2: Get section (throws 404 if not found)
+    Section section = sectionRepository.findById(request.getSectionId())
+            .orElseThrow(() -> new ResourceNotFoundException("Section", "id", request.getSectionId()));
+
+    // Step 3: Validate degree
+    checkCourseInDegree(student, section);
+
+    // Step 4: Check duplicate
+    if (enrollmentRepository.existsByStudentIdAndSectionId(student.getId(), section.getId())) {
+        throw new DuplicateEnrollmentException(student.getStudentNumber(), section.getSectionCode());
+    }
+
+    // Step 5: Check seat limit
+    if (section.getCurrentEnrollment() >= section.getMaxSeats()) {
+        throw new SeatLimitExceededException(section.getSectionCode(), section.getMaxSeats());
+    }
+
+    // Step 6: Check schedule conflict
+    checkScheduleConflict(student, section);
+
+    // Step 7: Create enrollment
+    Enrollment enrollment = Enrollment.builder()
+            .student(student)
+            .section(section)
+            .status(EnrollmentStatus.ENROLLED)
+            .build();
+
+    enrollment = enrollmentRepository.save(enrollment);
+    section.setCurrentEnrollment(section.getCurrentEnrollment() + 1);
+    sectionRepository.save(section);
+
+    return toDto(enrollment);
+}
+```
+
+
 
 ## Default Credentials
 
