@@ -107,12 +107,13 @@ class AdminControllerIT extends AbstractIntegrationTest {
         void testCreateSection_Success() throws Exception {
             String adminToken = loginAndGetToken("admin1", "admin123");
 
+            // Use room 1 with schedule 2 (MONDAY 10:00) - not used in seed data for term 2
             SectionCreateRequest request = SectionCreateRequest.builder()
                     .sectionCode("TEST-NEW")
                     .courseId(1L)
                     .roomId(1L)
                     .termId(2L)
-                    .scheduleId(1L)
+                    .scheduleId(2L)
                     .maxSeats(30)
                     .build();
 
@@ -131,13 +132,13 @@ class AdminControllerIT extends AbstractIntegrationTest {
         void testUpdateSection_Success() throws Exception {
             String adminToken = loginAndGetToken("admin1", "admin123");
 
-            // First create a section to update
+            // First create a section to update - use room 2 with schedule 4 (TUESDAY 13:00)
             SectionCreateRequest createRequest = SectionCreateRequest.builder()
                     .sectionCode("UPDATE-TEST")
                     .courseId(1L)
-                    .roomId(1L)
+                    .roomId(2L)
                     .termId(2L)
-                    .scheduleId(2L)
+                    .scheduleId(4L)
                     .maxSeats(25)
                     .build();
 
@@ -171,13 +172,13 @@ class AdminControllerIT extends AbstractIntegrationTest {
         void testDeleteSection_Success() throws Exception {
             String adminToken = loginAndGetToken("admin1", "admin123");
 
-            // Create a section to delete
+            // Create a section to delete - use room 3 with schedule 5 (WEDNESDAY 08:00)
             SectionCreateRequest createRequest = SectionCreateRequest.builder()
                     .sectionCode("DELETE-TEST")
                     .courseId(2L)
-                    .roomId(2L)
+                    .roomId(3L)
                     .termId(2L)
-                    .scheduleId(3L)
+                    .scheduleId(5L)
                     .maxSeats(20)
                     .build();
 

@@ -3,16 +3,17 @@ package com.gcash.enrollmentmanagementsystem.service;
 import com.gcash.enrollmentmanagementsystem.dto.auth.LoginRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.RegisterRequest;
 import com.gcash.enrollmentmanagementsystem.dto.auth.TokenResponse;
+import com.gcash.enrollmentmanagementsystem.entity.Degree;
 import com.gcash.enrollmentmanagementsystem.entity.Student;
 import com.gcash.enrollmentmanagementsystem.entity.User;
 import com.gcash.enrollmentmanagementsystem.enums.Role;
 import com.gcash.enrollmentmanagementsystem.exception.BadRequestException;
+import com.gcash.enrollmentmanagementsystem.repository.DegreeRepository;
 import com.gcash.enrollmentmanagementsystem.repository.StudentRepository;
 import com.gcash.enrollmentmanagementsystem.repository.UserRepository;
 import com.gcash.enrollmentmanagementsystem.security.JwtTokenProvider;
 import com.gcash.enrollmentmanagementsystem.security.UserPrincipal;
 import com.gcash.enrollmentmanagementsystem.util.TestDataBuilder;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,11 +30,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,10 +51,16 @@ class AuthServiceTest {
     private StudentRepository studentRepository;
 
     @Mock
+    private DegreeRepository degreeRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
 
     @InjectMocks
     private AuthService authService;
@@ -125,6 +133,7 @@ class AuthServiceTest {
         @DisplayName("Should register new student successfully")
         void testRegister_Success() {
             // Given
+            Degree degree = TestDataBuilder.aDegree().id(1L).build();
             RegisterRequest request = RegisterRequest.builder()
                     .username("newuser")
                     .email("newuser@example.com")
@@ -132,6 +141,7 @@ class AuthServiceTest {
                     .firstName("John")
                     .lastName("Doe")
                     .dateOfBirth(LocalDate.of(2000, 1, 15))
+                    .degreeId(1L)
                     .build();
 
             User savedUser = TestDataBuilder.aUser()
@@ -144,9 +154,10 @@ class AuthServiceTest {
             when(userRepository.existsByEmail("newuser@example.com")).thenReturn(false);
             when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
             when(userRepository.save(any(User.class))).thenReturn(savedUser);
+            when(degreeRepository.findById(1L)).thenReturn(Optional.of(degree));
             when(studentRepository.count()).thenReturn(0L);
             when(studentRepository.save(any(Student.class))).thenReturn(
-                    TestDataBuilder.aStudent().id(1L).user(savedUser).build());
+                    TestDataBuilder.aStudent().id(1L).user(savedUser).degree(degree).build());
             when(jwtTokenProvider.generateAccessToken(any(UserPrincipal.class))).thenReturn("access-token");
             when(jwtTokenProvider.generateRefreshToken(any(UserPrincipal.class))).thenReturn("refresh-token");
             when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(900L);
@@ -176,6 +187,7 @@ class AuthServiceTest {
                     .password("password123")
                     .firstName("John")
                     .lastName("Doe")
+                    .degreeId(1L)
                     .build();
 
             when(userRepository.existsByUsername("existinguser")).thenReturn(true);
@@ -198,6 +210,7 @@ class AuthServiceTest {
                     .password("password123")
                     .firstName("John")
                     .lastName("Doe")
+                    .degreeId(1L)
                     .build();
 
             when(userRepository.existsByUsername("newuser")).thenReturn(false);

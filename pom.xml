@@ -149,7 +149,10 @@
                         --add-opens java.base/java.lang.reflect=ALL-UNNAMED
                         --add-opens java.base/java.util=ALL-UNNAMED
                         --add-opens java.base/java.time=ALL-UNNAMED
+                        --add-opens java.base/java.lang.invoke=ALL-UNNAMED
+                        --add-opens java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED
                         -XX:+EnableDynamicAgentLoading
+                        -Dnet.bytebuddy.experimental=true
                     </argLine>
                 </configuration>
             </plugin>

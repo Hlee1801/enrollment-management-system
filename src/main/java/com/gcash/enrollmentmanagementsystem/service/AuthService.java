@@ -27,8 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Year;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -41,9 +39,7 @@ public class AuthService {
     private final DegreeRepository degreeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-
-    // In-memory blacklist for invalidated tokens (in production, use Redis)
-    private final Set<String> tokenBlacklist = ConcurrentHashMap.newKeySet();
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
@@ -136,7 +132,7 @@ public class AuthService {
         }
 
         // Check if token is blacklisted
-        if (tokenBlacklist.contains(refreshToken)) {
+        if (tokenBlacklistService.isBlacklisted(refreshToken)) {
             throw new UnauthorizedException("Token has been invalidated");
         }
 
@@ -151,7 +147,7 @@ public class AuthService {
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(userPrincipal);
 
         // Blacklist old refresh token
-        tokenBlacklist.add(refreshToken);
+        tokenBlacklistService.blacklist(refreshToken);
 
         return TokenResponse.builder()
                 .accessToken(newAccessToken)
@@ -163,14 +159,10 @@ public class AuthService {
     public void logout(String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            tokenBlacklist.add(token);
+            tokenBlacklistService.blacklist(token);
             log.info("Token invalidated successfully");
         }
         SecurityContextHolder.clearContext();
-    }
-
-    public boolean isTokenBlacklisted(String token) {
-        return tokenBlacklist.contains(token);
     }
 
     private String generateStudentNumber() {

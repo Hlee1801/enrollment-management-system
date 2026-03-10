@@ -235,7 +235,7 @@ class EnrollmentControllerIT extends AbstractIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(enrollRequest)))
                         .andExpect(status().isConflict())
-                        .andExpect(jsonPath("$.message").value(containsString("full")));
+                        .andExpect(jsonPath("$.message").value(containsString("maximum capacity")));
 
             } finally {
                 // Restore original enrollment count

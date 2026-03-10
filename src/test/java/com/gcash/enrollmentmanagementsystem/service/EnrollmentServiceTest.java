@@ -22,7 +22,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -30,12 +29,10 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class
-EnrollmentServiceTest {
+class EnrollmentServiceTest {
 
     @Mock
     private EnrollmentRepository enrollmentRepository;
@@ -60,8 +57,8 @@ EnrollmentServiceTest {
     @BeforeEach
     void setUp() {
         User user = TestDataBuilder.aUser().id(1L).build();
-        student = TestDataBuilder.aStudent().id(1L).user(user).build();
         degree = TestDataBuilder.aDegree().id(1L).build();
+        student = TestDataBuilder.aStudent().id(1L).user(user).degree(degree).build();
         course = TestDataBuilder.aCourse().id(1L).degree(degree).build();
         room = TestDataBuilder.aRoom().id(1L).build();
         term = TestDataBuilder.aTerm().id(1L).build();
@@ -88,12 +85,13 @@ EnrollmentServiceTest {
                     .id(1L)
                     .student(student)
                     .section(section)
+                    .status(EnrollmentStatus.ENROLLED)
                     .build();
 
             when(studentService.getCurrentStudent()).thenReturn(student);
             when(sectionRepository.findById(1L)).thenReturn(Optional.of(section));
-            when(enrollmentRepository.existsByStudentIdAndSectionId(anyLong(), anyLong())).thenReturn(false);
-            when(enrollmentRepository.findActiveEnrollmentsForScheduleConflictCheck(anyLong(), anyLong()))
+            when(enrollmentRepository.existsByStudentIdAndSectionId(1L, 1L)).thenReturn(false);
+            when(enrollmentRepository.findActiveEnrollmentsForScheduleConflictCheck(1L, 1L))
                     .thenReturn(List.of());
             when(enrollmentRepository.save(any(Enrollment.class))).thenReturn(savedEnrollment);
             when(sectionRepository.save(any(Section.class))).thenReturn(section);
@@ -131,7 +129,7 @@ EnrollmentServiceTest {
 
             when(studentService.getCurrentStudent()).thenReturn(student);
             when(sectionRepository.findById(1L)).thenReturn(Optional.of(fullSection));
-            when(enrollmentRepository.existsByStudentIdAndSectionId(anyLong(), anyLong())).thenReturn(false);
+            when(enrollmentRepository.existsByStudentIdAndSectionId(1L, 1L)).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> enrollmentService.createEnrollment(request))
@@ -148,7 +146,7 @@ EnrollmentServiceTest {
 
             when(studentService.getCurrentStudent()).thenReturn(student);
             when(sectionRepository.findById(1L)).thenReturn(Optional.of(section));
-            when(enrollmentRepository.existsByStudentIdAndSectionId(anyLong(), anyLong())).thenReturn(true);
+            when(enrollmentRepository.existsByStudentIdAndSectionId(1L, 1L)).thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> enrollmentService.createEnrollment(request))
@@ -199,8 +197,8 @@ EnrollmentServiceTest {
 
             when(studentService.getCurrentStudent()).thenReturn(student);
             when(sectionRepository.findById(1L)).thenReturn(Optional.of(newSection));
-            when(enrollmentRepository.existsByStudentIdAndSectionId(anyLong(), anyLong())).thenReturn(false);
-            when(enrollmentRepository.findActiveEnrollmentsForScheduleConflictCheck(anyLong(), anyLong()))
+            when(enrollmentRepository.existsByStudentIdAndSectionId(1L, 1L)).thenReturn(false);
+            when(enrollmentRepository.findActiveEnrollmentsForScheduleConflictCheck(1L, 1L))
                     .thenReturn(List.of(existingEnrollment));
 
             // When & Then

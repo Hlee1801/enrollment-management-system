@@ -118,6 +118,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
                     .firstName("New")
                     .lastName("User")
                     .dateOfBirth(LocalDate.of(2000, 5, 15))
+                    .degreeId(1L)
                     .build();
 
             // Step 1: Register new user
@@ -169,6 +170,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
                     .firstName("Test")
                     .lastName("User")
                     .dateOfBirth(LocalDate.of(2000, 1, 1))
+                    .degreeId(1L)
                     .build();
 
             // When & Then
@@ -190,6 +192,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
                     .firstName("Test")
                     .lastName("User")
                     .dateOfBirth(LocalDate.of(2000, 1, 1))
+                    .degreeId(1L)
                     .build();
 
             // When & Then
@@ -216,6 +219,7 @@ class AuthControllerIT extends AbstractIntegrationTest {
                     .firstName("Test")
                     .lastName("User")
                     .dateOfBirth(LocalDate.of(2000, 1, 1))
+                    .degreeId(1L)
                     .build();
 
             // When & Then
